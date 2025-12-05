@@ -373,7 +373,7 @@ export default function Landing() {
 
                 <li>
                   <div className="text-3xl lg:text-4xl text-white font-fredoka">
-                    8.3M+
+                    0
                   </div>
                   <div className="text-sm mt-2 lg:text-xl text-[#A3A9A6]">
                     Tips Earned
