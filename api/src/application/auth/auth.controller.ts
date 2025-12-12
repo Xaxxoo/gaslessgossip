@@ -131,8 +131,13 @@ export class AuthController {
       },
     },
   })
-  login(@Body() body: LoginDto) {
-    return this.authService.login(body);
+  async login(@Body() body: LoginDto) {
+    const result = await this.authService.login(body);
+
+    // If the service returns a 412 code, the interceptor will handle wrapping it
+    // and preserving the userId. We just return the result and let NestJS handle it.
+    // The interceptor will detect code: 412 and preserve all fields including userId.
+    return result;
   }
 
   @Post('verify-email/:userId')
@@ -151,7 +156,8 @@ export class AuthController {
   @ApiBody({ type: VerifyEmailDto })
   @ApiResponse({
     status: 200,
-    description: 'Email verified successfully.',
+    description:
+      'Email verified successfully. Returns user data and JWT token for automatic login.',
     schema: {
       example: {
         message: 'Email verified successfully',
@@ -159,7 +165,9 @@ export class AuthController {
           id: 1,
           username: 'johndoe',
           email: 'john.doe@example.com',
+          address: '0x1234567890abcdef',
         },
+        token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
       },
     },
   })

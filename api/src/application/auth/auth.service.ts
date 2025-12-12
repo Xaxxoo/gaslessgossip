@@ -105,12 +105,22 @@ export class AuthService {
         // );
 
         // return specific stuff frontend can catch instead
-        return {
+        const response = {
           code: 412,
           message: 'verify your account',
-          details:
-            'Your account is not verified. A verification email has been sent to ${user.email}. Please check your email and verify your account.',
+          details: `Your account is not verified. A verification email has been sent to ${user.email}. Please check your email and verify your account.`,
+          userId: user.id,
         };
+
+        // Debug logging to verify userId is included
+        console.log(
+          '[AuthService] Returning 412 response with userId:',
+          response.userId,
+          'Full response:',
+          response,
+        );
+
+        return response;
       } catch (error) {
         if (error instanceof BadRequestException) {
           // Max retries exceeded
@@ -155,13 +165,24 @@ export class AuthService {
       user,
     });
 
+    // Generate JWT token for automatic login after verification
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      username: user.username,
+      address: user.address,
+    };
+    const jwtToken = await this.jwtService.signAsync(payload);
+
     return {
       message: 'Email verified successfully',
       user: {
         id: user.id,
         username: user.username,
         email: user.email,
+        address: user.address,
       },
+      token: jwtToken,
     };
   }
 
