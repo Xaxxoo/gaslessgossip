@@ -17,6 +17,7 @@ import { Room } from '../../rooms/entities/room.entity';
 import { Wallet } from '../../wallets/entities/wallet.entity';
 import { UserVerification } from './user-verification.entity';
 import { File } from '@/application/files/entities/files.entity';
+import { Block } from './block.entity';
 
 @Entity()
 export class User {
@@ -105,4 +106,7 @@ export class User {
 
   @OneToMany(() => File, (file) => file.uploader)
   files: File[];
+
+  @OneToMany(() => Block, (block) => block.blocker)
+  blockedUsers: Block[];
 }

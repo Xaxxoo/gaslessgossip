@@ -50,6 +50,12 @@ export class Room {
   @Column({ default: false })
   anonymous_mode?: boolean;
 
+  @Column({ default: false })
+  is_disposable?: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  expiresAt?: Date;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -93,4 +93,10 @@ export class RoomController {
   getMembers(@Param('roomId') roomId: number) {
     return this.roomService.getMembers(roomId);
   }
+
+  @Post(':roomId/toggle-anonymous')
+  @UseGuards(JwtAuthGuard)
+  toggleAnonymousMode(@Param('roomId') roomId: number, @Request() req) {
+    return this.roomService.toggleAnonymousMode(roomId, req.user.userId);
+  }
 }

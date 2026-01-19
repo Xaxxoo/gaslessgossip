@@ -68,7 +68,10 @@ export default function RoomCard({ room, action }: RoomCardProps) {
 
     return (
         <>
-            <div className="bg-zinc-900 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 w-full mb-4 p-4 sm:p-0 relative">
+            <div 
+                onClick={() => router.push(`/rooms/${room.id}`)}
+                className="bg-zinc-900 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-6 w-full mb-4 p-4 sm:p-0 relative cursor-pointer hover:bg-zinc-800/80 transition-all border border-transparent hover:border-teal-500/20"
+            >
                 {/* Room Image */}
                 <div className="flex-shrink-0 w-full sm:w-[180px] h-[150px] sm:h-[120px] rounded-2xl overflow-hidden relative">
                     <Image

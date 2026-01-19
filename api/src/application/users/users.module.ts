@@ -10,18 +10,21 @@ import { UserVerificationService } from './user-verification.service';
 import { UserVerification } from './entities/user-verification.entity';
 import { EmailTemplateService } from '@/notification/core/email';
 import { Wallet } from '../wallets/entities/wallet.entity';
+import { Block } from './entities/block.entity';
+import { BlocksService } from './blocks.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Post, Chat, UserVerification, Wallet]),
+    TypeOrmModule.forFeature([User, Post, Chat, UserVerification, Wallet, Block]),
   ],
   providers: [
     UsersService,
     ChatsService,
     UserVerificationService,
     EmailTemplateService,
+    BlocksService,
   ],
   controllers: [UsersController],
-  exports: [UsersService],
+  exports: [UsersService, BlocksService],
 })
 export class UsersModule {}

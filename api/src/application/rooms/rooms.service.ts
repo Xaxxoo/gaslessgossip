@@ -56,6 +56,8 @@ export class RoomService {
       owner: user,
       code,
       status: 'active',
+      is_disposable: dto.is_disposable ?? false,
+      expiresAt: dto.expiresAt,
     };
 
     const room = this.roomsRepository.create(roomData);
@@ -205,5 +207,11 @@ export class RoomService {
       relations: ['user'],
       order: { joinedAt: 'ASC' },
     });
+  }
+
+  async toggleAnonymousMode(roomId: number, userId: number) {
+    const room = await this.getRoomByIdAndUserId(roomId, userId);
+    room.anonymous_mode = !room.anonymous_mode;
+    return await this.roomsRepository.save(room);
   }
 }

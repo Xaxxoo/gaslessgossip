@@ -24,6 +24,9 @@ export default function CreateRoomPage() {
   const [loading, setLoading] = useState(false);
   const [fetchingCategories, setFetchingCategories] = useState(true);
 
+  const [isDisposable, setIsDisposable] = useState(false);
+  const [anonymousMode, setAnonymousMode] = useState(false);
+
   // Fetch categories
   useEffect(() => {
     const fetchCategories = async () => {
@@ -59,6 +62,8 @@ export default function CreateRoomPage() {
         type,
         fee,
         roomCategoryId,
+        is_disposable: isDisposable,
+        anonymous_mode: anonymousMode,
       };
 
       const res = await api.post<ApiResponse>("/rooms", payload);
@@ -127,6 +132,35 @@ export default function CreateRoomPage() {
                 className="w-full bg-transparent border border-[#1A2221] rounded-2xl px-6 py-3.5 text-dark-grey placeholder:text-dark-grey focus:outline-none focus:border-2 focus:border-[#1A2221] transition-colors resize-none"
                 rows={3}
               />
+            </div>
+
+            {/* Room Settings */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <button
+                onClick={() => setIsDisposable(!isDisposable)}
+                className={`${isDisposable ? "bg-dark-teal" : "bg-[#1A1D22]"} flex items-center justify-between px-6 py-4 rounded-2xl transition-colors group`}
+              >
+                <div className="text-left">
+                  <span className="text-dark-white block">Disposable Room</span>
+                  <span className="text-[10px] text-gray-500">Auto-deletes after duration</span>
+                </div>
+                <div className={`w-6 h-6 rounded-full border-2 border-teal-600 flex items-center justify-center transition-all ${isDisposable ? "border-teal-300 border-2" : "border-gray-600 group-hover:border-gray-500"}`}>
+                  {isDisposable && <div className="w-5 h-5 rounded-full bg-[#14F1D9]" />}
+                </div>
+              </button>
+
+              <button
+                onClick={() => setAnonymousMode(!anonymousMode)}
+                className={`${anonymousMode ? "bg-dark-teal" : "bg-[#1A1D22]"} flex items-center justify-between px-6 py-4 rounded-2xl transition-colors group`}
+              >
+                <div className="text-left">
+                  <span className="text-dark-white block">Anonymous Mode</span>
+                  <span className="text-[10px] text-gray-500">Hide sender identities</span>
+                </div>
+                <div className={`w-6 h-6 rounded-full border-2 border-teal-600 flex items-center justify-center transition-all ${anonymousMode ? "border-teal-300 border-2" : "border-gray-600 group-hover:border-gray-500"}`}>
+                  {anonymousMode && <div className="w-5 h-5 rounded-full bg-[#14F1D9]" />}
+                </div>
+              </button>
             </div>
 
             {/* Room Category */}

@@ -20,6 +20,7 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UsersService } from './users.service';
+import { BlocksService } from './blocks.service';
 import { ChangePasswordDto, UpdateProfileDto } from './dtos/user.dto';
 import {
   CurrentUser,
@@ -29,7 +30,10 @@ import {
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly blocksService: BlocksService,
+  ) {}
 
   @Get('profile')
   @UseGuards(JwtAuthGuard)
@@ -695,5 +699,35 @@ export class UsersController {
     return {
       message: 'Logout successful on client side. Please delete your token.',
     };
+  }
+
+  @Post(':id/block')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Block a user' })
+  async blockUser(
+    @Param('id', ParseIntPipe) blockedId: number,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.blocksService.blockUser(user.userId, blockedId);
+  }
+
+  @Post(':id/unblock')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Unblock a user' })
+  async unblockUser(
+    @Param('id', ParseIntPipe) blockedId: number,
+    @CurrentUser() user: CurrentUserData,
+  ) {
+    return this.blocksService.unblockUser(user.userId, blockedId);
+  }
+
+  @Get('blocked')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get list of blocked users' })
+  async getBlockedUsers(@CurrentUser() user: CurrentUserData) {
+    return this.blocksService.getBlockedUsers(user.userId);
   }
 }

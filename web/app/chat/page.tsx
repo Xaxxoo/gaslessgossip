@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import {
   ArrowLeft,
   Paperclip,
   MessageCircleWarningIcon,
-  ArrowRightCircleIcon
+  ArrowRightCircleIcon,
+  UserX,
+  Flag
 } from "lucide-react"
 import Header from "@/components/ui/Header";
 
@@ -18,12 +20,15 @@ import { IChat, UserSearchResult } from "@/types/chat";
 import { useAuth } from "@/hooks/useAuth";
 import { timeAgo } from "@/utils/date";
 import { useSearchParams } from "next/navigation";
+import { useSocket } from "@/hooks/useSocket";
+import ReportModal from "@/components/ReportModal";
 
 export default function ChatInterface() {
   const searchParams = useSearchParams();
   const cid = searchParams.get("cid") ?? null;
   const username = searchParams.get("u") ?? null;
   const { user } = useAuth();
+  const { on, off, sendMessage } = useSocket();
   const [message, setMessage] = useState("")
   const [selectedUser, setSelectedUser] = useState<UserSearchResult | null>(null)
   const [chatId, setChatId] = useState<number | null>(cid ? Number(cid) : null)
@@ -32,9 +37,37 @@ export default function ChatInterface() {
   const [userSearch, setUserSearch] = useState<string>(username ? String(username) : "")
   const [userSearchResults, setUserSearchResults] = useState<UserSearchResult[]>([]);
   const [isSendTokenOpen, setIsSendTokenOpen] = useState(false)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
 
   const [isLoading, setIsLoading] = useState(false)
-  console.log("🚀 ~ ChatInterface ~ isLoading:", isLoading)
+
+  // Socket listener for new messages
+  useEffect(() => {
+    const handleNewMessage = (data: { chatId: number; message: any }) => {
+      if (data.chatId === chatId) {
+        setChat((prev) => {
+          if (!prev) return prev;
+          // Avoid duplicate messages
+          if (prev.messages.find(m => m.id === data.message.id)) return prev;
+          return {
+            ...prev,
+            messages: [...prev.messages, data.message]
+          };
+        });
+      }
+      // Update sidebar preview
+      setChats((prev) => 
+        prev.map((c) => 
+          c.id === data.chatId 
+            ? { ...c, lastMessage: { content: data.message.content, createdAt: data.message.createdAt, senderId: data.message.senderId } } 
+            : c
+        )
+      );
+    };
+
+    on("newMessage", handleNewMessage);
+    return () => off("newMessage", handleNewMessage);
+  }, [chatId, on, off]);
 
   // Fetch all chats on load
   const getAllChats = async () => {
@@ -50,19 +83,20 @@ export default function ChatInterface() {
   }, [])
 
 
-  const getChat = async () => {
+  const getChat = useCallback(async () => {
     try {
       const res = await api.get<ApiResponse>(`/chats/${chatId}`)
       if (!res.data.error) {
-        const chat = res.data.data;
-        const me = chat.sender.username === user?.username ? chat.receiver : chat.sender;
-        setChat(chat)
+        const chatData = res.data.data;
+        const me = chatData.sender.username === user?.username ? chatData.receiver : chatData.sender;
+        setChat(chatData)
         setSelectedUser(me)
       }
     } catch {
       toast.error("Failed to fetch chat")
     }
-  }
+  }, [chatId, user?.username]);
+
   // Get a single chat
   useEffect(() => {
     if (!chatId) {
@@ -71,7 +105,7 @@ export default function ChatInterface() {
       return;
     };
     getChat();
-  }, [chatId])
+  }, [chatId, getChat])
 
   const searchUser = async (u: string) => {
     try {
@@ -137,28 +171,32 @@ export default function ChatInterface() {
   }
 
   // send new message
-  const handleSendMessage = async (senderId: number, chatId: number) => {
-    if (!senderId) {
-      toast.error("Cannot send message without sender ID")
-      return;
-    } if (!chatId) {
-      toast.error("Cannot send message without chat ID")
-      return;
-    }
-    if (!message) return;
-    try {
-      const res = await api.post<ApiResponse>("/messages", { senderId, chatId, content: message })
-      if (!res.data.error) {
-        setMessage("")
-        setChatId(chatId)
-        getChat();
-      } else {
-        toast.error("Failed to send message in chat")
-      }
-    } catch {
-      toast.error("Failed to send message in chat")
-    }
+  const handleSendMessage = () => {
+    if (!message.trim() || !chatId) return;
+    
+    sendMessage({
+      chatId,
+      content: message,
+    });
+    setMessage("");
   }
+
+  const handleBlockUser = async () => {
+    if (!selectedUser) return;
+    try {
+      const res = await api.post(`/users/${selectedUser.id}/block`);
+      if (res.data.error) {
+        toast.error(res.data.message || "Failed to block user");
+      } else {
+        toast.success(`Blocked ${selectedUser.username}`);
+        setChatId(null);
+        setSelectedUser(null);
+        getAllChats();
+      }
+    } catch (err) {
+      toast.error("Error blocking user");
+    }
+  };
 
   const renderUserAvatar = (photo?: string | null) => (
     photo ? (
@@ -175,15 +213,15 @@ export default function ChatInterface() {
   return (
     <div className="relative">
       <Header />
-      <div className="w-full flex bg-black mt-28 mb-28 lg:mb-0 relative">
+      <div className="w-full flex bg-black mt-28 mb-28 lg:mb-0 relative min-h-[calc(100vh-112px)]">
         {/* Sidebar - Shows on desktop always, on mobile only when no chat selected */}
         <aside
           className={`${chatId === null ? "flex" : "hidden"
-            } md:flex w-full md:w-[320px] h-full min-h-screen fixed z-99`}
+            } md:flex w-full md:w-[320px] h-full min-h-[calc(100vh-112px)] sticky top-28 z-40`}
         >
-          <div className="w-full h-full flex-col flex relative bg-black text-white border-r border-teal-500">
+          <div className="w-full h-full flex-col flex relative bg-black text-white border-r border-teal-500/30">
             {/* Search Header */}
-            <div className="w-full md:w-[320px] h-[72px] fixed flex items-center gap-2 p-4 border-b border-teal-500">
+            <div className="w-full h-[72px] flex items-center gap-2 p-4 border-b border-teal-500/30">
               <div className="flex-1">
                 <div className="relative">
                   <input
@@ -191,61 +229,53 @@ export default function ChatInterface() {
                     placeholder="Search..."
                     value={userSearch}
                     onChange={(e) => setUserSearch(e.target.value)}
-                    className="w-full border-1 border-teal-400 rounded-full bg-teal-900/30 py-3 pr-10 pl-4 text-sm text-light-grey placeholder:text-light-grey outline-none focus:ring-2 focus:ring-teal-500"
+                    className="w-full border-1 border-teal-400/50 rounded-full bg-teal-900/10 py-2.5 pr-10 pl-4 text-sm text-light-grey placeholder:text-light-grey/50 outline-none focus:ring-1 focus:ring-teal-500"
                   />
-                  {/* <Search
-                  size={24}
-                  className="absolute right-3 top-1/2 -translate-y-1/2  text-light-grey"
-                /> */}
                 </div>
               </div>
             </div>
 
             {/* Messages List */}
-            <div className="w-full h-[calc(100%-72px)] mt-[72px] flex-1 overflow-y-auto">
+            <div className="w-full flex-1 overflow-y-auto">
               {userSearchResults.length === 0 && chats ? (
                 chats.length > 0 ?
-                  chats.map((chat) => {
-                    const me =
-                      user?.username === chat.sender.username
-                        ? { ...chat.sender, chat_id: chat.id }
-                        : { ...chat.receiver, chat_id: chat.id }
-
+                  chats.map((chatItem) => {
                     const recipient =
-                      user?.username === chat.sender.username
-                        ? { ...chat.receiver, chat_id: chat.id }
-                        : { ...chat.sender, chat_id: chat.id }
+                      user?.username === chatItem.sender.username
+                        ? { ...chatItem.receiver, chat_id: chatItem.id }
+                        : { ...chatItem.sender, chat_id: chatItem.id }
 
                     return (
                       <div
-                        key={chat.id}
+                        key={chatItem.id}
                         onClick={() => {
                           setSelectedUser(recipient)
-                          setChatId(chat.id)
+                          setChatId(chatItem.id)
                         }}
-                        className={`${chat.id == chatId && 'bg-teal-900/25'} flex items-center gap-2 p-4 hover:bg-gray-900 cursor-pointer border-b border-gray-800/50`}
+                        className={`${chatItem.id == chatId && 'bg-teal-900/25'} flex items-center gap-3 p-4 hover:bg-gray-900/50 cursor-pointer border-b border-gray-800/30 transition-colors`}
                       >
                         {renderUserAvatar(recipient.photo)}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center font-fredoka justify-between">
-                            <span className="font-medium text-sm text-white">{user?.username == chat.sender.username ? chat.receiver.username : chat.sender.username}</span>
+                            <span className="font-medium text-sm text-white truncate">{recipient.username}</span>
+                            {chatItem.lastMessage && (
+                              <span className="text-[10px] text-gray-500">{timeAgo(chatItem.lastMessage?.createdAt)}</span>
+                            )}
                           </div>
-                          {chat.lastMessage && <div className="flex flex-col items-start gap-1">
-                            <p className="text-sm font-fredoka text-light-grey truncate">{chat.lastMessage?.content}</p>
-                            <span className="text-xs text-[#7C837F]">{timeAgo(chat.lastMessage?.createdAt)}</span>
-                          </div>
-                          }
+                          {chatItem.lastMessage && (
+                            <p className="text-xs font-fredoka text-gray-400 truncate mt-0.5">{chatItem.lastMessage?.content}</p>
+                          )}
                         </div>
                         <div className="flex flex-col space-y-1">
-                          {chat.unreadCount && chat.unreadCount > 0 ? (
-                            <span className="inline-flex items-center justify-center self-end rounded-full bg-light-teal text-black w-4 h-4 text-xs font-medium flex-shrink-0">
-                              {chat.unreadCount}
+                          {chatItem.unreadCount && chatItem.unreadCount > 0 ? (
+                            <span className="inline-flex items-center justify-center rounded-full bg-teal-500 text-black w-4 h-4 text-[10px] font-bold">
+                              {chatItem.unreadCount}
                             </span>
                           ) : <></>}
                         </div>
                       </div>
                     )
-                  }) : <></>
+                  }) : <div className="p-8 text-center text-gray-500 text-sm">No conversations yet</div>
 
               ) : (
                 userSearchResults.map((u) => (
@@ -276,120 +306,136 @@ export default function ChatInterface() {
         {/* Main Chat Section - Shows on desktop always, on mobile only when chat selected */}
         <section
           className={`${selectedUser !== null ? "flex" : "hidden"
-            } md:flex flex-1 flex-col w-full h-full md:ml-[320px]`}
+            } md:flex flex-1 flex-col w-full h-[calc(100vh-112px)]`}
         >
           {selectedUser ?
-            <div className="w-full h-screen -mt-[112px]">
+            <div className="w-full h-full flex flex-col relative">
               {/* Chat Header */}
-              <header className="w-full h-[296px] z-0 -mt-[112px] fixed flex items-end justify-between text-white p-4 border-b border-teal-500 bg-black">
+              <header className="w-full h-16 flex items-center justify-between text-white px-4 border-b border-teal-500/30 bg-black/50 backdrop-blur-md sticky top-0 z-30">
                 <div className="flex items-center gap-3">
-                  <button className="md:hidden" onClick={() => {
+                  <button className="md:hidden p-1 hover:bg-gray-800 rounded-full" onClick={() => {
                     setChatId(null);
                     getAllChats();
                   }}>
-                    <ArrowLeft className="text-gray-400 w-6 h-6" />
+                    <ArrowLeft className="text-gray-400 w-5 h-5" />
                   </button>
-                  <span
-                    className="inline-block size-10 overflow-hidden rounded-full bg-gray-100 outline -outline-offset-1 outline-black/5 dark:bg-gray-800 dark:outline-white/10">
-                    <svg fill="currentColor" viewBox="0 0 24 24" className="size-full text-gray-300 dark:text-gray-600">
-                      <path
-                        d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                  </span>
+                  {renderUserAvatar(selectedUser.photo)}
                   <div>
-                    <h2 className="font-semibold text-sm text-dark-white">{selectedUser.username}</h2>
-                    <p className="text-xs text-teal-300">{selectedUser.title ?? "0x1 ninja"}</p>
+                    <h2 className="font-semibold text-sm text-white">{selectedUser.username}</h2>
+                    <p className="text-[10px] text-teal-500">{selectedUser.title ?? "Gasless Gossip Member"}</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {/* <button>
-                  <Search className="w-5 h-5 text-gray-400" />
-                </button>
-                <button>
-                  <MoreVertical className="w-5 h-5 text-gray-400" />
-                </button> */}
+                <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => setIsReportModalOpen(true)}
+                    className="p-2 hover:bg-red-500/10 rounded-full transition-colors text-gray-500 hover:text-red-500"
+                    title="Report User"
+                  >
+                    <Flag className="w-5 h-5" />
+                  </button>
+                  <button 
+                    onClick={handleBlockUser}
+                    className="p-2 hover:bg-red-500/10 rounded-full transition-colors text-gray-500 hover:text-red-500"
+                    title="Block User"
+                  >
+                    <UserX className="w-5 h-5" />
+                  </button>
                 </div>
               </header>
 
-              <div className="w-full h-full">
+              <div className="flex-1 flex flex-col overflow-hidden relative">
                 {!chatId ?
-                  <div className="flex flex-col flex-1 h-full items-center justify-center text-center space-y-4 p-6">
-                    <MessageCircleWarningIcon className="w-16 h-16 text-teal-400/80" />
+                  <div className="flex flex-col flex-1 items-center justify-center text-center space-y-4 p-6">
+                    <MessageCircleWarningIcon className="w-16 h-16 text-teal-500/50" />
                     <h3 className="text-xl font-semibold text-white font-fredoka">
                       Start a Conversation
                     </h3>
-                    <p className="text-light-grey text-sm max-w-sm">
-                      Looks like you haven’t chatted with <span className="text-teal-300">{selectedUser.username}</span> yet.
-                      Send a message to start the conversation.
+                    <p className="text-gray-400 text-sm max-w-sm">
+                      Send a message to start chatting with <span className="text-teal-500">@{selectedUser.username}</span>.
                     </p>
                     <button
                       onClick={() => handleCreateNewChat(selectedUser.username)}
-                      className="bg-teal-950 text-white cursor-pointer font-medium px-5 py-2 rounded-full transition-all duration-200"
+                      className="bg-teal-600 hover:bg-teal-700 text-white font-bold px-8 py-2.5 rounded-full transition-all shadow-lg shadow-teal-500/20"
                     >
-                      Chat Now
+                      Initialize Chat
                     </button>
                   </div> :
                   <>
-                    <div className="w-full h-[calc(100%-276px)] flex flex-col space-y-4 overflow-y-auto mt-[200px]">
+                    <div className="flex-1 p-4 overflow-y-auto flex flex-col space-y-3">
                       {chat?.messages && chat.messages.length > 0 ?
-                        chat.messages.map((msg, index) => (
+                        chat.messages.map((msg) => (
                           <div key={msg.id} className={`flex ${msg.senderId === user?.id ? "justify-end" : "justify-start"}`}>
-                            <div className={`max-w-[85%] md:max-w-[70%] ${msg.senderId === user?.id ? "text-right" : "text-left"}`}>
+                            <div className={`max-w-[85%] md:max-w-[70%]`}>
                               <div
-                                className={`px-4 py-3.5 ${msg.senderId === user?.id ? "bg-teal-800 rounded-tl-2xl rounded-bl-2xl" : "rounded-tr-2xl rounded-br-2xl bg-[#16191E]"
-                                  }`}
+                                className={`px-4 py-2.5 shadow-sm ${msg.senderId === user?.id 
+                                  ? "bg-teal-900/60 text-white rounded-2xl rounded-tr-none border border-teal-500/20" 
+                                  : "bg-zinc-900 text-gray-200 rounded-2xl rounded-tl-none border border-white/5"
+                                }`}
                               >
-                                <p className="text-sm text-dark-white">{msg.content}</p>
-                                <span className="text-xs text-gray-500 mt-1 inline-block">{timeAgo(String(msg.createdAt))}</span>
+                                <p className="text-sm leading-relaxed">{msg.content}</p>
+                                <div className={`text-[10px] mt-1 ${msg.senderId === user?.id ? "text-teal-400/70" : "text-gray-500"} flex items-center justify-end gap-1`}>
+                                  {timeAgo(String(msg.createdAt))}
+                                </div>
                               </div>
                             </div>
                           </div>
                         )) :
-                        <div className="flex flex-col flex-1 items-center justify-center text-center space-y-4 p-6 h-[calc(100%-76px)] ">
-                          <MessageCircleWarningIcon className="w-16 h-16 text-teal-400/80" />
-                          <h3 className="text-xl font-semibold text-white font-fredoka">
-                            Start a Conversation
-                          </h3>
-                          <p className="text-light-grey text-sm max-w-sm text-center">
-                            Looks like you haven’t chatted with <span className="text-teal-300">{selectedUser.username}</span> yet.
-                            Send a message to start the conversation.
-                          </p>
+                        <div className="flex flex-col flex-1 items-center justify-center text-center space-y-4 p-6">
+                          <div className="w-12 h-12 bg-zinc-900 rounded-full flex items-center justify-center">
+                            <MessageCircleWarningIcon className="w-6 h-6 text-gray-600" />
+                          </div>
+                          <p className="text-gray-500 text-sm">No messages yet. Say hi!</p>
                         </div>
                       }
                     </div>
 
-                    {chat &&
-                      <div className="h-[76px] p-4 border-t border-gray-800 bg-black">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1 relative">
-                            <input
-                              placeholder="Whisper..."
-                              value={message}
-                              onChange={(e) => setMessage(e.target.value)}
-                              className="text-white placeholder:text-stone-700 bg-[#16191E] w-full py-2.5 rounded-full pl-4 pr-10 outline-none focus:ring-0"
-                            />
-                            <button type="button" onClick={() => handleSendMessage(Number(user?.id), chat.id)} className="cursor-pointer absolute right-3 top-1/2 -translate-y-1/2">
-                              <ArrowRightCircleIcon className="w-5 h-5 text-gray-500" />
-                            </button>
-                          </div>
-                          <button
-                            onClick={() => setIsSendTokenOpen(true)}
-                            className="flex-shrink-0 p-2 hover:bg-gray-800 rounded-full transition-colors"
+                    <div className="p-4 bg-black border-t border-gray-800/50">
+                      <div className="flex items-center gap-2 max-w-4xl mx-auto">
+                        <button
+                          onClick={() => setIsSendTokenOpen(true)}
+                          className="p-2 hover:bg-gray-800 rounded-lg transition-colors text-emerald-500"
+                        >
+                          <Paperclip className="w-5 h-5" />
+                        </button>
+                        <div className="flex-1 relative">
+                          <input
+                            placeholder="Type a message..."
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
+                            className="text-white placeholder:text-gray-600 bg-zinc-900 w-full py-2.5 rounded-xl pl-4 pr-12 outline-none border border-white/5 focus:border-teal-500/30 transition-all"
+                          />
+                          <button 
+                            type="button" 
+                            onClick={handleSendMessage} 
+                            disabled={!message.trim()}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-teal-500 disabled:text-gray-700 hover:text-teal-400 transition-colors"
                           >
-                            <Paperclip className="w-5 h-5 text-emerald-500" />
+                            <ArrowRightCircleIcon className="w-6 h-6" />
                           </button>
                         </div>
                       </div>
-                    }
+                    </div>
                   </>
                 }
               </div>
+              <ReportModal 
+                isOpen={isReportModalOpen} 
+                onClose={() => setIsReportModalOpen(false)} 
+                reportedId={selectedUser.id}
+                reportedUsername={selectedUser.username}
+              />
             </div> :
-            <div className="w-full h-screen -mt-[112px] flex flex-col items-center justify-center gap-4">
-              <MessageCircleWarningIcon size={72} className="text-stone-400" />
-              <h3 className="text-xl font-medium text-stone-400">
-                Click the user you want to chat with...
+            <div className="w-full h-full flex flex-col items-center justify-center gap-4 text-center p-6">
+              <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center mb-2 border border-teal-500/10">
+                <MessageCircleWarningIcon size={40} className="text-gray-700" />
+              </div>
+              <h3 className="text-xl font-medium text-gray-500 font-fredoka">
+                Select a conversation
               </h3>
+              <p className="text-gray-600 text-sm max-w-xs">
+                Pick a friend from the left or search for someone new to start gossiping!
+              </p>
             </div>
           }
         </section>
