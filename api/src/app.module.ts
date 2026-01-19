@@ -26,6 +26,7 @@ import { AppController } from './app.controller';
 import { FilesModule } from './application/files/files.module';
 import { ContractsModule } from './contracts/contracts.module';
 import { JobsModule } from './jobs/jobs.module';
+import { ReportsModule } from './application/reports/reports.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { JobsModule } from './jobs/jobs.module';
     ContractsModule,
     JobsModule,
     FilesModule,
+    ReportsModule,
     // ContractsModule,
   ],
   controllers: [AppController],

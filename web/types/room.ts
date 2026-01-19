@@ -26,6 +26,9 @@ export interface IRoom {
   description?: string;
   photo?: string;
   status?: string;
+  is_disposable?: boolean;
+  expiresAt?: string;
+  anonymous_mode?: boolean;
   createdAt: string;
   room_category?: IRoomCategory | null;
   owner: IUser[];

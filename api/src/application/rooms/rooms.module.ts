@@ -11,5 +11,6 @@ import { User } from '../users/entities/user.entity';
   imports: [TypeOrmModule.forFeature([Room, RoomCategory, RoomMember, User])],
   controllers: [RoomController],
   providers: [RoomService],
+  exports: [RoomService],
 })
 export class RoomsModule {}

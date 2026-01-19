@@ -25,4 +25,10 @@ export class CreateRoomDto {
   @IsOptional()
   @IsNumber()
   roomCategoryId?: number;
+
+  @IsOptional()
+  is_disposable?: boolean;
+
+  @IsOptional()
+  expiresAt?: Date;
 }
